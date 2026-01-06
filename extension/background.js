@@ -1,6 +1,6 @@
 browser.menus.create({
   id: "repli-knapp",
-  title: "🤖 Svara med Repli",
+  title: "⚡ Svara med min stil",
   contexts: ["message_list"]
 });
 
@@ -8,29 +8,32 @@ browser.menus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId === "repli-knapp") {
     let messageHeader = info.selectedMessages.messages[0];
     
-    // 1. Hämta hela mailet
+    // Hämta mailet vi ska svara på
     let fullMessage = await browser.messages.getFull(messageHeader.id);
-    
-    // 2. Använd min hjälpfunktion för att hitta texten (se längst ner)
-    let bodyText = await extractBody(fullMessage);
-    let subjectText = messageHeader.subject;
+    let incomingBody = await extractBody(fullMessage);
+    let incomingSubject = messageHeader.subject;
 
-    console.log("Skickar ämne:", subjectText);
-    // console.log("Skickar text:", bodyText); // Avkommentera om du vill se texten i loggen
+    console.log("Letar efter din stil...");
+
+    // 1. Hitta dina tidigare skickade mail (för att lära oss stilen)
+    let myStyleSamples = await getSentMailSamples(messageHeader.folder.accountId);
+    console.log(`Hittade ${myStyleSamples.length} exempel på din stil.`);
 
     try {
+        // 2. Skicka allt till servern
         let response = await fetch("http://127.0.0.1:8000/skriv-svar", {
             method: "POST",
             headers: {"Content-Type": "application/json"},
-            // UPPDATERING: Skickar nu både subject och body
             body: JSON.stringify({ 
-                subject: subjectText,
-                body: bodyText
+                subject: incomingSubject,
+                body: incomingBody,
+                examples: myStyleSamples // <--- NYTT: Skickar med dina gamla mail
             })
         });
         
         let data = await response.json();
 
+        // 3. Skapa utkastet
         await browser.compose.beginReply(messageHeader.id, {
             body: data.svar
         });
@@ -41,21 +44,38 @@ browser.menus.onClicked.addListener(async (info, tab) => {
   }
 });
 
-// --- HJÄLPFUNKTION FÖR ATT HITTA TEXTEN I ETT MAIL ---
-async function extractBody(message) {
-    // Om mailet bara är enkel text
-    if (message.body) {
-        return message.body;
+// --- HJÄLPFUNKTION: Hitta 'Skickat'-mappen och hämta text ---
+async function getSentMailSamples(accountId) {
+    let account = await browser.accounts.get(accountId);
+    let sentExamples = [];
+
+    // Hitta mappen som är av typen "sent" (Skickat)
+    // OBS: Folders kan ligga nästlade, men vi kollar toppnivån först
+    for (let folder of account.folders) {
+        if (folder.type === "sent") {
+            // Hämta de 3 senaste meddelandena
+            let messages = await browser.messages.list(folder);
+            // Vi tar de första i listan (oftast nyast)
+            for (let i = 0; i < Math.min(3, messages.messages.length); i++) {
+                let msg = messages.messages[i];
+                let full = await browser.messages.getFull(msg.id);
+                let text = await extractBody(full);
+                if (text.length > 50) { // Ignorera jättekorta svar
+                    sentExamples.push(text.substring(0, 500)); // Ta max 500 tecken per mail
+                }
+            }
+        }
     }
-    
-    // Om mailet har delar (HTML/Text), leta rekursivt
+    return sentExamples;
+}
+
+// --- SAMMA SOM FÖRUT: Hitta text i mail ---
+async function extractBody(message) {
+    if (message.body) return message.body;
     let textPart = null;
-    
     function findTextPart(parts) {
         for (let part of parts) {
-            if (part.contentType === "text/plain") {
-                return part.body;
-            }
+            if (part.contentType === "text/plain") return part.body;
             if (part.parts) {
                 let found = findTextPart(part.parts);
                 if (found) return found;
@@ -63,11 +83,6 @@ async function extractBody(message) {
         }
         return null;
     }
-
-    if (message.parts) {
-        textPart = findTextPart(message.parts);
-    }
-    
-    // Om vi inte hittar ren text, ta vad som finns (ofta HTML)
-    return textPart || "Kunde inte läsa mailets innehåll.";
+    if (message.parts) textPart = findTextPart(message.parts);
+    return textPart || "";
 }
