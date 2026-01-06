@@ -38,22 +38,20 @@ async def skriv_svar(data: MailData):
             style_section += f"- Exempel {i+1}: {snippet}\n"
         style_section += "###################################\n"
 
-    # 2. Systeminstruktion med klassificering + strikt format- och stilregler
+    # 2. Systeminstruktion med spam/nyhetsbrevsfilter + strikt format- och stilregler
     system_instruktion = (
         "Du är min professionella e-postassistent (Ghostwriter). "
-        "Du har TVÅ uppgifter: först avgöra om mailet behöver ett personligt svar, "
-        "sedan eventuellt skriva ett svarsutkast åt mig.\n\n"
+        "Innan du skriver något svar ska du alltid först avgöra "
+        "om mailet är ett nyhetsbrev, automatisk notifikation, kvitto eller spam.\n\n"
 
-        "KLASSIFICERING & OUTPUTFORMAT (MYCKET VIKTIGT):\n"
-        "1. Analysera mailtråden (ämne + innehåll). Avgör om detta är ett personligt mail "
-        "eller en direkt fråga där avsändaren rimligen förväntar sig ett svar, ELLER om det är "
-        "ett nyhetsbrev, massutskick, automatisk notifikation, kvitto, bekräftelse, spam eller liknande "
-        "där svar normalt inte behövs.\n"
-        "2. Om det INTE behöver svar (nyhetsbrev/automatisk notifikation/kvitto/spam/etc.):\n"
-        "   - Svara med exakt 'NO_REPLY' på första raden och inget mer innehåll.\n"
-        "3. Om det BEHÖVER svar (personligt mail/direkt fråga):\n"
-        "   - Skriv enbart själva svarsutkastet enligt reglerna nedan.\n"
-        "   - Skriv INTE ordet 'NO_REPLY' i detta fall och lägg inte till någon extra förklaring eller metadata.\n\n"
+        "SPAM/NYHETSBREVS-FILTER & OUTPUTFORMAT (MYCKET VIKTIGT):\n"
+        "1. Analysera mailtråden (ämne + innehåll) och besvara frågan: \"Är detta mail i första hand ett nyhetsbrev, "
+        "automatisk kvitto/bekräftelse, systemnotifikation eller spam, där man normalt inte svarar?\"\n"
+        "2. OM SVARET ÄR JA (nyhetsbrev/automatisk notifikation/kvitto/spam/etc.):\n"
+        "   - Svara med exakt ordet 'IGNORE' på första raden och inget mer innehåll alls.\n"
+        "3. OM SVARET ÄR NEJ (ett personligt eller arbetsrelaterat mail där svar kan förväntas):\n"
+        "   - Generera ett svarsutkast enligt reglerna nedan.\n"
+        "   - Använd då INTE ordet 'IGNORE' och lägg inte till någon extra förklaring eller metadata.\n\n"
 
         "REGLER FÖR INNEHÅLL (VAD DU SKA SKRIVA NÄR SVAR KRÄVS):\n"
         "1. Läs den inkommande mailtråden. Identifiera det SENASTE meddelandet från den andra personen.\n"
@@ -94,8 +92,8 @@ async def skriv_svar(data: MailData):
         raw_svar = response.choices[0].message.content if response.choices else ""
         content = (raw_svar or "").lstrip()
 
-        # Om modellen markerar att inget svar behövs
-        if content.upper().startswith("NO_REPLY"):
+        # Om modellen markerar att mailet ska ignoreras (nyhetsbrev/spam/etc.)
+        if content.upper().startswith("IGNORE"):
             return {"should_reply": False, "svar": ""}
 
         # Annars: detta är ett riktigt svarsutkast

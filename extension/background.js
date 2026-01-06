@@ -34,24 +34,15 @@ browser.menus.onClicked.addListener(async (info, tab) => {
         let data = await response.json();
 
         // 3. Hantera klassificering: ska vi svara eller inte?
-        if (data.should_reply) {
-            await browser.compose.beginReply(messageHeader.id, {
-                body: data.svar
-            });
-        } else {
-            console.log("Ignorerade nyhetsbrev/spam");
-            try {
-                if (browser.notifications && browser.notifications.create) {
-                    await browser.notifications.create({
-                        type: "basic",
-                        title: "Repli",
-                        message: "Ignorerade nyhetsbrev/spam"
-                    });
-                }
-            } catch (e) {
-                console.warn("Kunde inte visa notifikation", e);
-            }
+        if (!data.should_reply) {
+            console.log("Ignored newsletter/spam");
+            return; // Inget svar skapas
         }
+
+        // should_reply === true: skapa svarsutkast som tidigare
+        await browser.compose.beginReply(messageHeader.id, {
+            body: data.svar
+        });
 
     } catch (error) {
         console.error("Fel:", error);
