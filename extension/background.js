@@ -33,10 +33,25 @@ browser.menus.onClicked.addListener(async (info, tab) => {
         
         let data = await response.json();
 
-        // 3. Skapa utkastet
-        await browser.compose.beginReply(messageHeader.id, {
-            body: data.svar
-        });
+        // 3. Hantera klassificering: ska vi svara eller inte?
+        if (data.should_reply) {
+            await browser.compose.beginReply(messageHeader.id, {
+                body: data.svar
+            });
+        } else {
+            console.log("Ignorerade nyhetsbrev/spam");
+            try {
+                if (browser.notifications && browser.notifications.create) {
+                    await browser.notifications.create({
+                        type: "basic",
+                        title: "Repli",
+                        message: "Ignorerade nyhetsbrev/spam"
+                    });
+                }
+            } catch (e) {
+                console.warn("Kunde inte visa notifikation", e);
+            }
+        }
 
     } catch (error) {
         console.error("Fel:", error);
