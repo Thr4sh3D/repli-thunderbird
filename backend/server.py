@@ -90,10 +90,14 @@ async def skriv_svar(data: MailData):
             temperature=0.6 # Lite lägre temperatur för att den ska hålla sig till stilen
         )
         raw_svar = response.choices[0].message.content if response.choices else ""
-        content = (raw_svar or "").lstrip()
+        content = raw_svar or ""
 
-        # Om modellen markerar att mailet ska ignoreras (nyhetsbrev/spam/etc.)
-        if content.upper().startswith("IGNORE"):
+        # Strikt spam-/nyhetsbrevsdetektion baserat på IGNORE-taggen
+        ai_raw = (content or "").strip().upper()
+        should_reply = not ai_raw.startswith("IGNORE")
+        print(f"Filter Decision: Should Reply? {should_reply}")
+
+        if not should_reply:
             return {"should_reply": False, "svar": ""}
 
         # Annars: detta är ett riktigt svarsutkast

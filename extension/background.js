@@ -32,11 +32,11 @@ browser.menus.onClicked.addListener(async (info, tab) => {
         });
         
         let data = await response.json();
+        console.log("SERVER DECISION:", JSON.stringify(data));
 
-        // 3. Hantera klassificering: ska vi svara eller inte?
-        if (!data.should_reply) {
-            console.log("Ignored newsletter/spam");
-            return; // Inget svar skapas
+        if (data.should_reply === false) {
+            console.log("⛔ STOP: Ignored by filter.");
+            return; // This return MUST exist to stop execution.
         }
 
         // should_reply === true: skapa svarsutkast som tidigare
@@ -55,23 +55,52 @@ async function getSentMailSamples(accountId) {
     let account = await browser.accounts.get(accountId);
     let sentExamples = [];
 
-    // Hitta mappen som är av typen "sent" (Skickat)
-    // OBS: Folders kan ligga nästlade, men vi kollar toppnivån först
-    for (let folder of account.folders) {
-        if (folder.type === "sent") {
-            // Hämta de 3 senaste meddelandena
-            let messages = await browser.messages.list(folder);
-            // Vi tar de första i listan (oftast nyast)
-            for (let i = 0; i < Math.min(3, messages.messages.length); i++) {
-                let msg = messages.messages[i];
-                let full = await browser.messages.getFull(msg.id);
-                let text = await extractBody(full);
-                if (text.length > 50) { // Ignorera jättekorta svar
-                    sentExamples.push(text.substring(0, 500)); // Ta max 500 tecken per mail
-                }
+    // Samla alla mappar (inkl. undermappar) rekursivt
+    let allFolders = [];
+    function collectFolders(folders) {
+        if (!folders) return;
+        for (let folder of folders) {
+            console.log("Checking folder:", folder.name, folder.type);
+            allFolders.push(folder);
+            if (folder.subFolders && folder.subFolders.length) {
+                collectFolders(folder.subFolders);
             }
         }
     }
+
+    collectFolders(account.folders);
+
+    // Vanliga namn för "Skickat"-mappar
+    const sentNames = ["Sent", "Skickat", "Sent Items", "Skickade"];
+
+    // Filtrera fram mappar som är av typen "sent" eller har ett matchande namn
+    let candidateFolders = allFolders.filter(folder => {
+        if (!folder) return false;
+        if (folder.type === "sent") return true;
+        if (folder.name && sentNames.includes(folder.name)) return true;
+        return false;
+    });
+
+    // Hämta upp till 3 senaste meddelanden från varje kandidat-mapp
+    for (let folder of candidateFolders) {
+        try {
+            let messagesResult = await browser.messages.list(folder);
+            let messages = (messagesResult && messagesResult.messages) ? messagesResult.messages : [];
+
+            for (let i = 0; i < Math.min(3, messages.length); i++) {
+                let msg = messages[i];
+                let full = await browser.messages.getFull(msg.id);
+                let text = await extractBody(full);
+                if (text && text.length > 50) { // Ignorera jättekorta svar
+                    sentExamples.push(text.substring(0, 500)); // Ta max 500 tecken per mail
+                }
+            }
+        } catch (e) {
+            console.warn("Kunde inte läsa meddelanden från mapp", folder.name, e);
+        }
+    }
+
+    // Fallback: om inga exempel hittades, returnera tom array
     return sentExamples;
 }
 
