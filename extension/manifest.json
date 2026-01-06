@@ -1,15 +1,22 @@
 {
   "manifest_version": 2,
-  "name": "Repli Test",
+  "name": "Repli",
   "version": "1.0",
-  "description": "Min egna AI assistent",
+  "description": "Min AI assistent",
   "permissions": [
     "menus",
     "messagesRead",
     "compose",
-    "http://127.0.0.1:8000/*"
+    "http://127.0.0.1:8000/*",
+    "accountsRead"
   ],
   "background": {
     "scripts": ["background.js"]
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "repli@tobias.local",
+      "strict_min_version": "78.0"
+    }
   }
 }
