@@ -32,11 +32,11 @@ browser.menus.onClicked.addListener(async (info, tab) => {
         });
         
         let data = await response.json();
-        console.log("SERVER DECISION:", JSON.stringify(data));
+        console.log("AI DECISION:", JSON.stringify(data));
 
         if (data.should_reply === false) {
-            console.log("⛔ STOP: Ignored by filter.");
-            return; // This return MUST exist to stop execution.
+            console.log("⛔ STOP: Suppressing window for spam/newsletter.");
+            return; // This MUST exit the function immediately to prevent opening a tab.
         }
 
         // should_reply === true: skapa svarsutkast som tidigare

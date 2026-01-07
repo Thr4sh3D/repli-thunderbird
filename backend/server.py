@@ -40,6 +40,8 @@ async def skriv_svar(data: MailData):
 
     # 2. Systeminstruktion med spam/nyhetsbrevsfilter + strikt format- och stilregler
     system_instruktion = (
+        "CLASSIFICATION TASK: You are a strict email filter. Is this email a newsletter, automated notification, receipt, spam, or a 'noreply' message? If YES, output ONLY the word 'IGNORE'. If NO (it is a personal/work email requiring a response), write a draft response.\n\n"
+
         "Du är min professionella e-postassistent (Ghostwriter). "
         "Innan du skriver något svar ska du alltid först avgöra "
         "om mailet är ett nyhetsbrev, automatisk notifikation, kvitto eller spam.\n\n"
@@ -89,20 +91,17 @@ async def skriv_svar(data: MailData):
             ],
             temperature=0.6 # Lite lägre temperatur för att den ska hålla sig till stilen
         )
-        raw_svar = response.choices[0].message.content if response.choices else ""
-        content = raw_svar or ""
+        content = response.choices[0].message.content if response.choices else ""
+        ai_raw = (content or "").strip()
 
         # Strikt spam-/nyhetsbrevsdetektion baserat på IGNORE-taggen
-        ai_raw = (content or "").strip().upper()
-        should_reply = not ai_raw.startswith("IGNORE")
-        print(f"Filter Decision: Should Reply? {should_reply}")
-
-        if not should_reply:
+        if "IGNORE" in ai_raw.upper():
+            print("FILTER: BLOCKING SPAM")
             return {"should_reply": False, "svar": ""}
 
         # Annars: detta är ett riktigt svarsutkast
-        clean_svar = content.replace("Ämne:", "").replace("Subject:", "").strip()
-        return {"should_reply": True, "svar": clean_svar}
+        print("FILTER: ALLOWING REPLY")
+        return {"should_reply": True, "svar": ai_raw}
 
     except Exception as e:
         print(f"Fel: {e}")
