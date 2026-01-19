@@ -1,13 +1,14 @@
-console.log("🛠️ CHECKING API:", typeof messenger, typeof messenger.messages);
-if (messenger.messages) console.log("🛠️ AVAILABLE FUNCTIONS:", Object.keys(messenger.messages));
+console.log("🛠️ CHECKING API:", typeof browser, typeof browser.messages);
+if (browser.messages) console.log("🛠️ AVAILABLE FUNCTIONS:", Object.keys(browser.messages));
+console.log("Checking browser.messages keys:", Object.keys(browser.messages || {}));
 
-messenger.menus.create({
+browser.menus.create({
   id: "repli-knapp",
   title: "⚡ Svara med min stil",
   contexts: ["message_list"]
 });
 
-messenger.menus.onClicked.addListener(async (info, tab) => {
+browser.menus.onClicked.addListener(async (info, tab) => {
     console.log("🔥 REPLI BUTTON CLICKED!");
     if (info.menuItemId === "repli-knapp") {
     let messageHeader = info.selectedMessages.messages[0];
@@ -16,7 +17,7 @@ messenger.menus.onClicked.addListener(async (info, tab) => {
 });
 
 // Autopilot: lyssna i bakgrunden på nya mail
-messenger.messages.onNewMailReceived.addListener(async (folder, messages) => {
+browser.messages.onNewMailReceived.addListener(async (folder, messages) => {
     if (!messages || !messages.messages || !messages.messages.length) return;
 
     console.log("📨 AUTOPILOT: New mail detected in folder:", folder && folder.name);
@@ -33,12 +34,12 @@ messenger.messages.onNewMailReceived.addListener(async (folder, messages) => {
 // --- KÄRNLOGIK: bearbeta ett mail (manuellt eller autopilot) ---
 async function processEmail(messageHeader, isAutopilot) {
     // Hämta mailet vi ska svara på
-    let fullMessage = await messenger.messages.getFull(messageHeader.id);
+    let fullMessage = await browser.messages.getFull(messageHeader.id);
     let incomingBody = await extractBody(fullMessage);
     let incomingSubject = messageHeader.subject;
 
     // 1. Hitta din "Skickat"-mapp (över alla konton) och läs exempel därifrån
-    const accounts = await messenger.accounts.list();
+    const accounts = await browser.accounts.list();
     let sentFolder = null;
 
     for (let account of accounts) {
@@ -80,15 +81,15 @@ async function processEmail(messageHeader, isAutopilot) {
         if (isAutopilot) {
             // Autopilot: markera mailet och skicka notis istället för att öppna fönster
             try {
-                if (messenger.messages && messenger.messages.update) {
-                    await messenger.messages.update(messageHeader.id, { tags: ["$label1"] });
+                if (browser.messages && browser.messages.update) {
+                    await browser.messages.update(messageHeader.id, { tags: ["$label1"] });
                     console.log("✅ TAG APPLIED SUCCESS!");
                 } else {
                     console.error("⚠️ PERMISSION MISSING: Cannot tag message. 'messagesModify' permission might be inactive.");
                 }
 
                 const sender = messageHeader.author || "okänd avsändare";
-                await messenger.notifications.create({
+                await browser.notifications.create({
                     type: "basic",
                     title: "Repli: Important email detected",
                     message: `Important email detected from ${sender}`
@@ -98,7 +99,7 @@ async function processEmail(messageHeader, isAutopilot) {
             }
         } else {
             // Manuell: öppna utkast i skrivfönster
-            await messenger.compose.beginReply(messageHeader.id, {
+            await browser.compose.beginReply(messageHeader.id, {
                 body: data.svar
             });
         }
