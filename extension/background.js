@@ -1,10 +1,13 @@
-browser.menus.create({
+console.log("🛠️ CHECKING API:", typeof messenger, typeof messenger.messages);
+if (messenger.messages) console.log("🛠️ AVAILABLE FUNCTIONS:", Object.keys(messenger.messages));
+
+messenger.menus.create({
   id: "repli-knapp",
   title: "⚡ Svara med min stil",
   contexts: ["message_list"]
 });
 
-browser.menus.onClicked.addListener(async (info, tab) => {
+messenger.menus.onClicked.addListener(async (info, tab) => {
     console.log("🔥 REPLI BUTTON CLICKED!");
     if (info.menuItemId === "repli-knapp") {
     let messageHeader = info.selectedMessages.messages[0];
@@ -13,7 +16,7 @@ browser.menus.onClicked.addListener(async (info, tab) => {
 });
 
 // Autopilot: lyssna i bakgrunden på nya mail
-browser.messages.onNewMailReceived.addListener(async (folder, messages) => {
+messenger.messages.onNewMailReceived.addListener(async (folder, messages) => {
     if (!messages || !messages.messages || !messages.messages.length) return;
 
     console.log("📨 AUTOPILOT: New mail detected in folder:", folder && folder.name);
@@ -30,7 +33,7 @@ browser.messages.onNewMailReceived.addListener(async (folder, messages) => {
 // --- KÄRNLOGIK: bearbeta ett mail (manuellt eller autopilot) ---
 async function processEmail(messageHeader, isAutopilot) {
     // Hämta mailet vi ska svara på
-    let fullMessage = await browser.messages.getFull(messageHeader.id);
+    let fullMessage = await messenger.messages.getFull(messageHeader.id);
     let incomingBody = await extractBody(fullMessage);
     let incomingSubject = messageHeader.subject;
 
@@ -77,15 +80,15 @@ async function processEmail(messageHeader, isAutopilot) {
         if (isAutopilot) {
             // Autopilot: markera mailet och skicka notis istället för att öppna fönster
             try {
-                if (browser.messages.update) {
-                    await browser.messages.update(messageHeader.id, { tags: ["$label1"] });
+                if (messenger.messages && messenger.messages.update) {
+                    await messenger.messages.update(messageHeader.id, { tags: ["$label1"] });
                     console.log("✅ TAG APPLIED SUCCESS!");
                 } else {
                     console.error("⚠️ PERMISSION MISSING: Cannot tag message. 'messagesModify' permission might be inactive.");
                 }
 
                 const sender = messageHeader.author || "okänd avsändare";
-                await browser.notifications.create({
+                await messenger.notifications.create({
                     type: "basic",
                     title: "Repli: Important email detected",
                     message: `Important email detected from ${sender}`
@@ -95,7 +98,7 @@ async function processEmail(messageHeader, isAutopilot) {
             }
         } else {
             // Manuell: öppna utkast i skrivfönster
-            await browser.compose.beginReply(messageHeader.id, {
+            await messenger.compose.beginReply(messageHeader.id, {
                 body: data.svar
             });
         }

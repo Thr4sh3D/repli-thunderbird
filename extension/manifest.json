@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "Repli",
-  "version": "1.0",
+  "version": "1.1",
   "description": "AI-svar med din stil",
   "permissions": [
     "messagesRead",
