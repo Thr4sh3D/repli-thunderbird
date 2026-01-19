@@ -106,9 +106,9 @@ async def skriv_svar(data: MailData):
             return {"should_reply": False, "svar": ""}
 
         # Annars: detta är ett riktigt svarsutkast
-        # För att Thunderbird inte ska svälja enkla radbrytningar (använd Windows CRLF + extra rad)
-        final_svar = ai_raw.replace("\n", "\r\n\r\n")
-        print(f"DEBUG FORMAT: {repr(final_svar[:100])}")
+        # Konvertera radbrytningar till HTML-radbrytningar för Thunderbird
+        final_svar = ai_raw.replace("\n", "<br>")
+        print(f"DEBUG HTML: {repr(final_svar[:100])}")
         print("FILTER: ALLOWING REPLY")
         return {"should_reply": True, "svar": final_svar}
 
