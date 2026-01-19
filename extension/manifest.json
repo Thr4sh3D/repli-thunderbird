@@ -4,11 +4,12 @@
   "version": "1.0",
   "description": "Min AI assistent",
   "permissions": [
-    "menus",
     "messagesRead",
-    "compose",
-    "http://127.0.0.1:8000/*",
-    "accountsRead"
+    "messagesModify",
+    "accountsRead",
+    "menus",
+    "notifications",
+    "storage"
   ],
   "background": {
     "scripts": ["background.js"]

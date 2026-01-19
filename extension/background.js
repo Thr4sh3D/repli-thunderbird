@@ -8,17 +8,34 @@ browser.menus.onClicked.addListener(async (info, tab) => {
     console.log("🔥 REPLI BUTTON CLICKED!");
     if (info.menuItemId === "repli-knapp") {
     let messageHeader = info.selectedMessages.messages[0];
-    
+    await processEmail(messageHeader, false);
+  }
+});
+
+// Autopilot: lyssna i bakgrunden på nya mail
+browser.messages.onNewMailReceived.addListener(async (folder, messages) => {
+    if (!messages || !messages.messages || !messages.messages.length) return;
+
+    console.log("📨 AUTOPILOT: New mail detected in folder:", folder && folder.name);
+
+    for (let messageHeader of messages.messages) {
+        try {
+            await processEmail(messageHeader, true);
+        } catch (error) {
+            console.error("Autopilot error:", error);
+        }
+    }
+});
+
+// --- KÄRNLOGIK: bearbeta ett mail (manuellt eller autopilot) ---
+async function processEmail(messageHeader, isAutopilot) {
     // Hämta mailet vi ska svara på
     let fullMessage = await browser.messages.getFull(messageHeader.id);
     let incomingBody = await extractBody(fullMessage);
     let incomingSubject = messageHeader.subject;
 
-    console.log("Letar efter din stil...");
-
     // 1. Hitta din "Skickat"-mapp (över alla konton) och läs exempel därifrån
     const accounts = await messenger.accounts.list();
-    console.log("Found accounts:", accounts.map(a => a.name));
     let sentFolder = null;
 
     for (let account of accounts) {
@@ -32,10 +49,7 @@ browser.menus.onClicked.addListener(async (info, tab) => {
 
     let myStyleSamples = [];
     if (sentFolder) {
-        console.log("Found Sent folder:", sentFolder.name);
         myStyleSamples = await getSentMailSamples(sentFolder);
-    } else {
-        console.log("No Sent folder found");
     }
 
     console.log(`Hittade ${myStyleSamples.length} exempel på din stil.`);
@@ -48,7 +62,7 @@ browser.menus.onClicked.addListener(async (info, tab) => {
             body: JSON.stringify({ 
                 subject: incomingSubject,
                 body: incomingBody,
-                examples: myStyleSamples // <--- NYTT: Skickar med dina gamla mail
+                examples: myStyleSamples
             })
         });
         
@@ -56,20 +70,31 @@ browser.menus.onClicked.addListener(async (info, tab) => {
         console.log("AI DECISION:", JSON.stringify(data));
 
         if (data.should_reply === false) {
-            console.log("⛔ STOP: Suppressing window for spam/newsletter.");
-            return; // This MUST exit the function immediately to prevent opening a tab.
+            console.log("Ignored spam");
+            return;
         }
 
-        // should_reply === true: skapa svarsutkast som tidigare
-        await browser.compose.beginReply(messageHeader.id, {
-            body: data.svar
-        });
+        if (isAutopilot) {
+            // Autopilot: markera mailet och skicka notis istället för att öppna fönster
+            await browser.messages.update(messageHeader.id, { tags: ["$label1"] });
+            const sender = messageHeader.author || "okänd avsändare";
+            await browser.notifications.create({
+                type: "basic",
+                iconUrl: "", // optional, can be filled with extension icon
+                title: "Repli: Important email detected",
+                message: `Important email detected from ${sender}`
+            });
+        } else {
+            // Manuell: öppna utkast i skrivfönster
+            await browser.compose.beginReply(messageHeader.id, {
+                body: data.svar
+            });
+        }
 
     } catch (error) {
         console.error("Fel:", error);
     }
-  }
-});
+}
 
 // --- HJÄLPFUNKTION: Traversera alla mappar rekursivt och hitta "Skickat" ---
 function traverse(folders) {
@@ -82,11 +107,8 @@ function traverse(folders) {
         const type = folder.type || "(no type)";
         const subCount = (folder.subFolders && folder.subFolders.length) ? folder.subFolders.length : 0;
 
-        console.log("📂 Checking:", name, "Type:", type);
-
         // Försök hitta "Skickat"-mapp baserat på typ eller namn
         if (folder.type === "sent" || name === "Sent" || name === "Skickat") {
-            console.log("✅ MATCH FOUND!", name, "Type:", type);
             return folder;
         }
 
@@ -109,7 +131,7 @@ async function getSentMailSamples(sentFolder) {
         let messagesResult = await browser.messages.list(sentFolder);
         let messages = (messagesResult && messagesResult.messages) ? messagesResult.messages : [];
 
-        for (let i = 0; i < Math.min(3, messages.length); i++) {
+        for (let i = 0; i < Math.min(15, messages.length); i++) {
             let msg = messages[i];
             let full = await browser.messages.getFull(msg.id);
             let text = await extractBody(full);
