@@ -15,8 +15,27 @@ browser.menus.onClicked.addListener(async (info, tab) => {
 
     console.log("Letar efter din stil...");
 
-    // 1. Hitta dina tidigare skickade mail (för att lära oss stilen)
-    let myStyleSamples = await getSentMailSamples(messageHeader.folder.accountId);
+    // 1. Hitta din "Skickat"-mapp (över alla konton) och läs exempel därifrån
+    let accounts = await browser.accounts.list();
+    let sentFolder = null;
+
+    for (let account of accounts) {
+        if (!account || !account.folders) continue;
+        let found = findSentFolder(account.folders);
+        if (found) {
+            sentFolder = found;
+            break;
+        }
+    }
+
+    let myStyleSamples = [];
+    if (sentFolder) {
+        console.log("Found Sent folder:", sentFolder.name);
+        myStyleSamples = await getSentMailSamples(sentFolder);
+    } else {
+        console.log("No Sent folder found");
+    }
+
     console.log(`Hittade ${myStyleSamples.length} exempel på din stil.`);
 
     try {
@@ -50,54 +69,65 @@ browser.menus.onClicked.addListener(async (info, tab) => {
   }
 });
 
-// --- HJÄLPFUNKTION: Hitta 'Skickat'-mappen och hämta text ---
-async function getSentMailSamples(accountId) {
-    let account = await browser.accounts.get(accountId);
-    let sentExamples = [];
+// --- HJÄLPFUNKTION: Hitta "Skickat"-mapp rekursivt + logga allt ---
+function findSentFolder(folders) {
+    if (!folders) return null;
 
-    // Samla alla mappar (inkl. undermappar) rekursivt
-    let allFolders = [];
-    function collectFolders(folders) {
-        if (!folders) return;
-        for (let folder of folders) {
-            console.log("Checking folder:", folder.name, folder.type);
-            allFolders.push(folder);
-            if (folder.subFolders && folder.subFolders.length) {
-                collectFolders(folder.subFolders);
+    for (let folder of folders) {
+        if (!folder) continue;
+
+        const name = folder.name || "(no name)";
+        const type = folder.type || "(no type)";
+        const subCount = (folder.subFolders && folder.subFolders.length) ? folder.subFolders.length : 0;
+
+        console.log("SCANNING:", name, "| Type:", type, "| Subfolders:", subCount);
+
+        // Bred sökning på namn och typ
+        if (folder.type === "sent") {
+            return folder;
+        }
+
+        if (folder.name) {
+            const lower = folder.name.toLowerCase();
+            if (
+                lower.includes("sent") ||
+                lower.includes("skickat") ||
+                lower.includes("outbox") ||
+                lower.includes("items")
+            ) {
+                return folder;
             }
+        }
+
+        if (folder.subFolders && folder.subFolders.length) {
+            let found = findSentFolder(folder.subFolders);
+            if (found) return found;
         }
     }
 
-    collectFolders(account.folders);
+    return null;
+}
 
-    // Vanliga namn för "Skickat"-mappar
-    const sentNames = ["Sent", "Skickat", "Sent Items", "Skickade"];
+// --- HJÄLPFUNKTION: Hämta exempel från en given "Skickat"-mapp ---
+async function getSentMailSamples(sentFolder) {
+    if (!sentFolder) return [];
 
-    // Filtrera fram mappar som är av typen "sent" eller har ett matchande namn
-    let candidateFolders = allFolders.filter(folder => {
-        if (!folder) return false;
-        if (folder.type === "sent") return true;
-        if (folder.name && sentNames.includes(folder.name)) return true;
-        return false;
-    });
+    let sentExamples = [];
 
-    // Hämta upp till 3 senaste meddelanden från varje kandidat-mapp
-    for (let folder of candidateFolders) {
-        try {
-            let messagesResult = await browser.messages.list(folder);
-            let messages = (messagesResult && messagesResult.messages) ? messagesResult.messages : [];
+    try {
+        let messagesResult = await browser.messages.list(sentFolder);
+        let messages = (messagesResult && messagesResult.messages) ? messagesResult.messages : [];
 
-            for (let i = 0; i < Math.min(3, messages.length); i++) {
-                let msg = messages[i];
-                let full = await browser.messages.getFull(msg.id);
-                let text = await extractBody(full);
-                if (text && text.length > 50) { // Ignorera jättekorta svar
-                    sentExamples.push(text.substring(0, 500)); // Ta max 500 tecken per mail
-                }
+        for (let i = 0; i < Math.min(3, messages.length); i++) {
+            let msg = messages[i];
+            let full = await browser.messages.getFull(msg.id);
+            let text = await extractBody(full);
+            if (text && text.length > 50) { // Ignorera jättekorta svar
+                sentExamples.push(text.substring(0, 500)); // Ta max 500 tecken per mail
             }
-        } catch (e) {
-            console.warn("Kunde inte läsa meddelanden från mapp", folder.name, e);
         }
+    } catch (e) {
+        console.warn("Kunde inte läsa meddelanden från mapp", sentFolder.name, e);
     }
 
     // Fallback: om inga exempel hittades, returnera tom array
