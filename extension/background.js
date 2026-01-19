@@ -76,14 +76,17 @@ async function processEmail(messageHeader, isAutopilot) {
 
         if (isAutopilot) {
             // Autopilot: markera mailet och skicka notis istället för att öppna fönster
-            await browser.messages.update(messageHeader.id, { tags: ["$label1"] });
-            const sender = messageHeader.author || "okänd avsändare";
-            await browser.notifications.create({
-                type: "basic",
-                iconUrl: "", // optional, can be filled with extension icon
-                title: "Repli: Important email detected",
-                message: `Important email detected from ${sender}`
-            });
+            try {
+                await browser.messages.update(messageHeader.id, { tags: ["$label1"] });
+                const sender = messageHeader.author || "okänd avsändare";
+                await browser.notifications.create({
+                    type: "basic",
+                    title: "Repli: Important email detected",
+                    message: `Important email detected from ${sender}`
+                });
+            } catch (e) {
+                console.error("Autopilot tag/notification error:", e);
+            }
         } else {
             // Manuell: öppna utkast i skrivfönster
             await browser.compose.beginReply(messageHeader.id, {
