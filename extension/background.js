@@ -5,7 +5,8 @@ browser.menus.create({
 });
 
 browser.menus.onClicked.addListener(async (info, tab) => {
-  if (info.menuItemId === "repli-knapp") {
+    console.log("🔥 REPLI BUTTON CLICKED!");
+    if (info.menuItemId === "repli-knapp") {
     let messageHeader = info.selectedMessages.messages[0];
     
     // Hämta mailet vi ska svara på
@@ -16,12 +17,13 @@ browser.menus.onClicked.addListener(async (info, tab) => {
     console.log("Letar efter din stil...");
 
     // 1. Hitta din "Skickat"-mapp (över alla konton) och läs exempel därifrån
-    let accounts = await browser.accounts.list();
+    const accounts = await messenger.accounts.list();
+    console.log("Found accounts:", accounts.map(a => a.name));
     let sentFolder = null;
 
     for (let account of accounts) {
         if (!account || !account.folders) continue;
-        let found = findSentFolder(account.folders);
+        let found = traverse(account.folders);
         if (found) {
             sentFolder = found;
             break;
@@ -69,8 +71,8 @@ browser.menus.onClicked.addListener(async (info, tab) => {
   }
 });
 
-// --- HJÄLPFUNKTION: Hitta "Skickat"-mapp rekursivt + logga allt ---
-function findSentFolder(folders) {
+// --- HJÄLPFUNKTION: Traversera alla mappar rekursivt och hitta "Skickat" ---
+function traverse(folders) {
     if (!folders) return null;
 
     for (let folder of folders) {
@@ -80,27 +82,16 @@ function findSentFolder(folders) {
         const type = folder.type || "(no type)";
         const subCount = (folder.subFolders && folder.subFolders.length) ? folder.subFolders.length : 0;
 
-        console.log("SCANNING:", name, "| Type:", type, "| Subfolders:", subCount);
+        console.log("📂 Checking:", name, "Type:", type);
 
-        // Bred sökning på namn och typ
-        if (folder.type === "sent") {
+        // Försök hitta "Skickat"-mapp baserat på typ eller namn
+        if (folder.type === "sent" || name === "Sent" || name === "Skickat") {
+            console.log("✅ MATCH FOUND!", name, "Type:", type);
             return folder;
         }
 
-        if (folder.name) {
-            const lower = folder.name.toLowerCase();
-            if (
-                lower.includes("sent") ||
-                lower.includes("skickat") ||
-                lower.includes("outbox") ||
-                lower.includes("items")
-            ) {
-                return folder;
-            }
-        }
-
         if (folder.subFolders && folder.subFolders.length) {
-            let found = findSentFolder(folder.subFolders);
+            let found = traverse(folder.subFolders);
             if (found) return found;
         }
     }
