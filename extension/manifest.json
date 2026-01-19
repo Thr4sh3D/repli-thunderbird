@@ -2,7 +2,7 @@
   "manifest_version": 2,
   "name": "Repli",
   "version": "1.0",
-  "description": "Min AI assistent",
+  "description": "AI-svar med din stil",
   "permissions": [
     "messagesRead",
     "messagesModify",
@@ -16,8 +16,8 @@
   },
   "browser_specific_settings": {
     "gecko": {
-      "id": "repli@tobias.local",
-      "strict_min_version": "78.0"
+      "id": "repli@dinstil.se",
+      "strict_min_version": "115.0"
     }
   }
 }

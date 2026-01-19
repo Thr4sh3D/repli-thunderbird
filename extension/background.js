@@ -77,7 +77,13 @@ async function processEmail(messageHeader, isAutopilot) {
         if (isAutopilot) {
             // Autopilot: markera mailet och skicka notis istället för att öppna fönster
             try {
-                await browser.messages.update(messageHeader.id, { tags: ["$label1"] });
+                if (browser.messages.update) {
+                    await browser.messages.update(messageHeader.id, { tags: ["$label1"] });
+                    console.log("✅ TAG APPLIED SUCCESS!");
+                } else {
+                    console.error("⚠️ PERMISSION MISSING: Cannot tag message. 'messagesModify' permission might be inactive.");
+                }
+
                 const sender = messageHeader.author || "okänd avsändare";
                 await browser.notifications.create({
                     type: "basic",
